@@ -1,12 +1,35 @@
-from typing import Callable, Dict
+from collections.abc import Iterator
+from typing import Callable, Dict, Protocol
 
 import torch
 import torch.nn as nn
 from torchvision.models import ConvNeXt_Tiny_Weights, convnext_tiny
 from transformers import DistilBertModel
 
-IMAGE_REGISTRY: Dict[str, Callable[[], nn.Module]] = {}
-TEXT_REGISTRY: Dict[str, Callable[[str], nn.Module]] = {}
+
+class ImageEncoderModule(Protocol):
+    out_dim: int
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor: ...
+
+    def parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]: ...
+
+
+class TextEncoderModule(Protocol):
+    out_dim: int
+
+    def __call__(
+        self, *, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> torch.Tensor: ...
+
+    def parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]: ...
+
+
+ImageEncoderBuilder = Callable[[], ImageEncoderModule]
+TextEncoderBuilder = Callable[[str], TextEncoderModule]
+
+IMAGE_REGISTRY: Dict[str, ImageEncoderBuilder] = {}
+TEXT_REGISTRY: Dict[str, TextEncoderBuilder] = {}
 
 
 def _register(registry: Dict, name: str):
@@ -17,7 +40,7 @@ def _register(registry: Dict, name: str):
     return dec
 
 
-def build_image_encoder(name: str) -> nn.Module:
+def build_image_encoder(name: str) -> ImageEncoderModule:
     if name not in IMAGE_REGISTRY:
         raise ValueError(
             f"Unknown image encoder '{name}'. Available: {list(IMAGE_REGISTRY)}"
@@ -25,7 +48,7 @@ def build_image_encoder(name: str) -> nn.Module:
     return IMAGE_REGISTRY[name]()
 
 
-def build_text_encoder(name: str, model_name: str) -> nn.Module:
+def build_text_encoder(name: str, model_name: str) -> TextEncoderModule:
     if name not in TEXT_REGISTRY:
         raise ValueError(
             f"Unknown text encoder '{name}'. Available: {list(TEXT_REGISTRY)}"
