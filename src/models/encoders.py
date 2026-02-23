@@ -34,6 +34,8 @@ TEXT_REGISTRY: Dict[str, TextEncoderBuilder] = {}
 
 def _register(registry: Dict, name: str):
     def dec(fn):
+        if name in registry:
+            raise ValueError(f"Encoder name '{name}' is already registered.")
         registry[name] = fn
         return fn
 

@@ -36,6 +36,10 @@ class FusionClassifier(nn.Module):
 
     def set_encoder_trainable(self, trainable: bool) -> None:
         for enc in (self.image_encoder, self.text_encoder):
+            if trainable:
+                enc.train()
+            else:
+                enc.eval()
             for p in enc.parameters():
                 p.requires_grad = trainable
 
