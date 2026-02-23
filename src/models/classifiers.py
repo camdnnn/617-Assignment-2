@@ -1,9 +1,14 @@
-from typing import Dict, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
 
-from .encoders import build_image_encoder, build_text_encoder
+from .encoders import (
+    ImageEncoderModule,
+    TextEncoderModule,
+    build_image_encoder,
+    build_text_encoder,
+)
 
 
 class FusionClassifier(nn.Module):
@@ -16,9 +21,11 @@ class FusionClassifier(nn.Module):
         text_encoder_name: str = "distilbert",
     ):
         super().__init__()
-        self.image_encoder = build_image_encoder(image_encoder_name)
-        self.text_encoder = build_text_encoder(text_encoder_name, text_model_name)
-        dim = self.image_encoder.out_dim + self.text_encoder.out_dim
+        self.image_encoder: ImageEncoderModule = build_image_encoder(image_encoder_name)
+        self.text_encoder: TextEncoderModule = build_text_encoder(
+            text_encoder_name, text_model_name
+        )
+        dim: int = self.image_encoder.out_dim + self.text_encoder.out_dim
         self.head = nn.Sequential(
             nn.LayerNorm(dim),
             nn.Linear(dim, 512),
@@ -51,13 +58,3 @@ class FusionClassifier(nn.Module):
     ) -> torch.Tensor:
         img_emb, txt_emb = self.encode(pixel_values, input_ids, attention_mask)
         return self.head(torch.cat([img_emb, txt_emb], dim=1))
-
-    @classmethod
-    def from_config(cls, cfg: Dict) -> "FusionClassifier":
-        return cls(
-            text_model_name=cfg.get("text_model_name", "distilbert-base-uncased"),
-            num_classes=cfg.get("num_classes", 4),
-            dropout=cfg.get("dropout", 0.2),
-            image_encoder_name=cfg.get("image_encoder_name", "convnext_tiny"),
-            text_encoder_name=cfg.get("text_encoder_name", "distilbert"),
-        )
