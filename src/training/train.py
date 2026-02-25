@@ -56,7 +56,7 @@ def accuracy_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> float:
 # -------------------------
 
 def import_multimodal_ingestion(src_dir: Path):
-    module_path = src_dir / "data-ingestion" / "multimodal_ingestion.py"
+    module_path = src_dir / "data_ingestion" / "multimodal_ingestion.py"
     if not module_path.exists():
         raise FileNotFoundError(f"Expected file not found: {module_path}")
 
