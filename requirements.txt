@@ -1,3 +1,16 @@
+# Core deep learning
 torch
 torchvision
+
+# NLP tokenization / transformer text encoder
 transformers
+
+# Data + images
+numpy
+Pillow
+
+# Plots / figures
+matplotlib
+
+# Evaluation metrics (confusion matrix, classification report, ROC/PR, etc.)
+scikit-learn
