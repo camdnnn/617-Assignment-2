@@ -8,6 +8,7 @@ transformers
 # Data + images
 numpy
 Pillow
+pandas
 
 # Plots / figures
 matplotlib
@@ -17,3 +18,5 @@ scikit-learn
 
 # Notebook execution and parameterization
 papermill
+nbconvert
+ipykernel
