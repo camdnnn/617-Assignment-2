@@ -10,7 +10,7 @@ Outputs in --save-dir:
 - loss_curve.png
 - accuracy_curve.png
 
-Optionally runs evaluation at the end by calling src/evaluation/evaluate.py logic:
+Optionally runs evaluation at the end by calling src/evaluation/evaluate.ipynb logic:
   python src/training/train.py --eval
 """
 
@@ -28,6 +28,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR
+
+import papermill as pm
 
 import matplotlib.pyplot as plt
 
@@ -128,7 +130,7 @@ def parse_args() -> TrainConfig:
     p.add_argument("--local-files-only", action="store_true")
 
     p.add_argument("--freeze-encoders", action="store_true")
-    p.add_argument("--eval", action="store_true", help="Run evaluation pack after training")
+    p.add_argument("--eval", action="store_true", help="Run evaluation notebook after training")
 
     a = p.parse_args()
     return TrainConfig(
@@ -259,6 +261,42 @@ def plot_curves(save_dir: Path, history: List[Dict[str, float]]) -> None:
     plt.close()
 
 
+# -------------------------
+# Evaluation notebook execution
+# -------------------------
+def run_evaluation_notebook(
+    *,
+    notebook_path: Path,
+    checkpoint_path: Path,
+    cfg: TrainConfig,
+    class_names: List[str]
+) -> None:
+    parameters = dict(
+        checkpoint_path=str(checkpoint_path),
+        test_path=cfg.test_path,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        text_model_name=cfg.text_model_name,
+        image_encoder_name=cfg.image_encoder_name,
+        text_encoder_name=cfg.text_encoder_name,
+        dropout=cfg.dropout,
+        max_length=cfg.max_length,
+        local_files_only=cfg.local_files_only,
+        class_names=class_names,
+    )
+
+    print(f"Executing evaluation notebook: {notebook_path}")
+    print(f"parameters: {parameters}")
+
+    pm.execute_notebook(
+        input_path=str(notebook_path),
+        output_path=str(notebook_path),
+        parameters=parameters
+    )
+
+    print(f"Completed execution of evaluation notebook: {notebook_path}")
+
+
 def main() -> None:
     cfg = parse_args()
     set_seed(cfg.seed)
@@ -347,23 +385,20 @@ def main() -> None:
     plot_curves(save_dir, history)
     print(f"Saved training metrics/curves to: {save_dir}")
 
-    # Optional evaluation pack (delegated to src/evaluation/evaluate.py)
+    # Optional evaluation pack (delegated to src/evaluation/evaluate.ipynb)
     if cfg.run_eval:
-        from evaluation.evaluate import run_evaluation_pack  # noqa: E402
 
         idx_to_class = {v: k for k, v in class_to_idx.items()}
         class_names = [idx_to_class[i] for i in range(len(idx_to_class))]
 
-        eval_out = save_dir / "eval_best"
-        run_evaluation_pack(
+        notebook_path = src_dir / "evaluation" / "evaluate.ipynb"
+
+        run_evaluation_notebook(
+            notebook_path=notebook_path,
             checkpoint_path=best_path,
-            model=model,
-            test_loader=test_loader,
-            device=device,
+            cfg=cfg,
             class_names=class_names,
-            output_dir=eval_out,
         )
-        print(f"Saved evaluation pack to: {eval_out}")
 
 
 if __name__ == "__main__":
