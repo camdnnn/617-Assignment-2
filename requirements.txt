@@ -15,8 +15,3 @@ matplotlib
 
 # Evaluation metrics (confusion matrix, classification report, ROC/PR, etc.)
 scikit-learn
-
-# Notebook execution and parameterization
-papermill
-nbconvert
-ipykernel
