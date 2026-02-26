@@ -125,7 +125,6 @@ def parse_args() -> TrainConfig:
     p.add_argument("--local-files-only", action="store_true")
 
     p.add_argument("--freeze-encoders", action="store_true")
-    p.add_argument("--eval", action="store_true", help="Run evaluation notebook after training")
 
     a = p.parse_args()
     return TrainConfig(
