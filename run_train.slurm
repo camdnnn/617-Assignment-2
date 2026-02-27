@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=ensf617_ass2
 #SBATCH --partition=gpu
-#SBATCH --output=/home/mahasamilage.senanay/ass2/logs/train_%j.out
-#SBATCH --error=/home/mahasamilage.senanay/ass2/logs/train_%j.err
+#SBATCH --output=logs/train_%j.out
+#SBATCH --error=logs/train_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --mem=24G
 #SBATCH --cpus-per-task=2
