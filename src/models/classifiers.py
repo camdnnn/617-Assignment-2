@@ -1,3 +1,5 @@
+"""Model that uses both image and text to make a class prediction."""
+
 from typing import Tuple
 
 import torch
@@ -21,12 +23,16 @@ class FusionClassifier(nn.Module):
         text_encoder_name: str = "distilbert",
     ):
         super().__init__()
+        # Pick which image/text models to use from the names passed in.
         self.image_encoder: ImageEncoderModule = build_image_encoder(image_encoder_name)
         self.text_encoder: TextEncoderModule = build_text_encoder(
             text_encoder_name, text_model_name
         )
+        # Join image + text features so the final layers can use both.
         dim: int = self.image_encoder.out_dim + self.text_encoder.out_dim
+        # This small head turns the combined features into class scores.
         self.head = nn.Sequential(
+            # Normalize first so training is more stable across encoder choices.
             nn.LayerNorm(dim),
             nn.Linear(dim, 512),
             nn.GELU(),
@@ -35,10 +41,12 @@ class FusionClassifier(nn.Module):
         )
 
     def set_encoder_trainable(self, trainable: bool) -> None:
+        # Turn both encoders on or off for training in one place.
         for enc in (self.image_encoder, self.text_encoder):
             if trainable:
                 enc.train()
             else:
+                # Keep encoder behavior fixed when we are not updating them.
                 enc.eval()
             for p in enc.parameters():
                 p.requires_grad = trainable
@@ -49,6 +57,7 @@ class FusionClassifier(nn.Module):
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Return image and text features separately before combining.
         return (
             self.image_encoder(pixel_values),
             self.text_encoder(input_ids=input_ids, attention_mask=attention_mask),
@@ -61,4 +70,5 @@ class FusionClassifier(nn.Module):
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
         img_emb, txt_emb = self.encode(pixel_values, input_ids, attention_mask)
+        # Combine features for each sample, then output class logits.
         return self.head(torch.cat([img_emb, txt_emb], dim=1))

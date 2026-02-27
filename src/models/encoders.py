@@ -1,3 +1,6 @@
+"""Image and text encoder setup used by the classifier."""
+# This file is set up so different encoders can be swapped in for testing.
+
 from collections.abc import Iterator
 from typing import Callable, Dict, Protocol
 
@@ -6,7 +9,8 @@ import torch.nn as nn
 from torchvision.models import ConvNeXt_Tiny_Weights, convnext_tiny
 from transformers import DistilBertModel
 
-
+# Expected shape for any image encoder used in this project.
+# It must return a feature vector, report its output size, and expose parameters.
 class ImageEncoderModule(Protocol):
     out_dim: int
 
@@ -14,7 +18,8 @@ class ImageEncoderModule(Protocol):
 
     def parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]: ...
 
-
+# Expected shape for any text encoder used in this project.
+# It follows the same idea as image encoder, but with tokenized text inputs.
 class TextEncoderModule(Protocol):
     out_dim: int
 
@@ -28,11 +33,13 @@ class TextEncoderModule(Protocol):
 ImageEncoderBuilder = Callable[[], ImageEncoderModule]
 TextEncoderBuilder = Callable[[str], TextEncoderModule]
 
+# Map encoder names to functions that create those encoders.
 IMAGE_REGISTRY: Dict[str, ImageEncoderBuilder] = {}
 TEXT_REGISTRY: Dict[str, TextEncoderBuilder] = {}
 
 
 def _register(registry: Dict, name: str):
+    # Save each encoder under one unique name.
     def dec(fn):
         if name in registry:
             raise ValueError(f"Encoder name '{name}' is already registered.")
@@ -43,6 +50,7 @@ def _register(registry: Dict, name: str):
 
 
 def build_image_encoder(name: str) -> ImageEncoderModule:
+    # If the name is wrong, show valid options right away.
     if name not in IMAGE_REGISTRY:
         raise ValueError(
             f"Unknown image encoder '{name}'. Available: {list(IMAGE_REGISTRY)}"
@@ -51,6 +59,7 @@ def build_image_encoder(name: str) -> ImageEncoderModule:
 
 
 def build_text_encoder(name: str, model_name: str) -> TextEncoderModule:
+    # Text encoder also needs a model name when it is created.
     if name not in TEXT_REGISTRY:
         raise ValueError(
             f"Unknown text encoder '{name}'. Available: {list(TEXT_REGISTRY)}"
@@ -63,6 +72,7 @@ class ConvNeXtEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         base = convnext_tiny(weights=ConvNeXt_Tiny_Weights.DEFAULT)
+        # Keep feature layers only; skip the original final classifier layer.
         self.features, self.avgpool = base.features, base.avgpool
         self.out_dim = 768
 
@@ -81,6 +91,7 @@ class TextEncoder(nn.Module):
     def forward(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor
     ) -> torch.Tensor:
+        # Use the first token as one text feature vector.
         return self.model(
             input_ids=input_ids, attention_mask=attention_mask
         ).last_hidden_state[:, 0, :]
