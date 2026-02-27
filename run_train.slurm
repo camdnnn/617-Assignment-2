@@ -12,15 +12,17 @@ module purge
 module load conda/base
 module load cuda/12.1.1
 
-# Make sure conda activate works in batch shells
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ensf617-ass2
 
 export MPLBACKEND=Agg
-export HF_HOME=/home/mahasamilage.senanay/.cache/huggingface
-export TRANSFORMERS_CACHE=/home/mahasamilage.senanay/.cache/huggingface/transformers
+export HF_HOME=$HOME/.cache/huggingface
+export TRANSFORMERS_CACHE=$HF_HOME/transformers
 
-cd /home/mahasamilage.senanay/ass2
+cd "$SLURM_SUBMIT_DIR"
+
+mkdir -p logs
+mkdir -p checkpoints
 
 python src/training/train.py \
   --train-path /work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Train \

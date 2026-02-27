@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=ass2_smoke
 #SBATCH --partition=gpu
-#SBATCH --output=/home/mahasamilage.senanay/ass2/logs/smoke_%j.out
-#SBATCH --error=/home/mahasamilage.senanay/ass2/logs/smoke_%j.err
+#SBATCH --output=logs/smoke_%j.out
+#SBATCH --error=logs/smoke_%j.err
 #SBATCH --time=01:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
@@ -15,10 +15,14 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ensf617-ass2
 
 export MPLBACKEND=Agg
-export HF_HOME=/home/mahasamilage.senanay/.cache/huggingface
-export TRANSFORMERS_CACHE=/home/mahasamilage.senanay/.cache/huggingface/transformers
+export HF_HOME="$HOME/.cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME/transformers"
 
-cd /home/mahasamilage.senanay/ass2
+# Always run from submission directory (project root)
+cd "$SLURM_SUBMIT_DIR"
+
+mkdir -p logs
+mkdir -p checkpoints
 
 echo "=== CUDA CHECK ==="
 python - <<'PY'
