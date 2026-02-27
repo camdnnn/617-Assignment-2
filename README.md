@@ -54,7 +54,7 @@ SLURM job scripts live in the repo root:
 
 - [`src/training/train.py`](./src/training/train.py): Training entry point (training loop, checkpoint saving, metrics logging, and saving learning-curve plots).
 
-- [`src/evaluation/evaluate.ipynb`](./src/evaluation/evaluate.ipynb): Evaluation notebook (loads a saved checkpoint, runs inference on eval/val set, computes metrics/plots such as confusion matrices).
+- [`src/evaluation/evaluate.ipynb`](./src/evaluation/evaluate.ipynb): Evaluation (Prediction) notebook (loads a saved checkpoint, runs inference on test set, computes metrics/plots such as confusion matrices).
 
 ### Results (`results/`)
 - [`results/metrics.csv`](./results/metrics.csv): Logged training/validation metrics per epoch (loss/accuracy, etc.).
@@ -69,4 +69,4 @@ Typical outputs produced by training/evaluation include:
 - Model checkpoints (e.g., `best.pt`) written by the training run (location depends on `--save-dir` / SLURM script configuration).
 - CSV metrics logs for reproducibility ([`results/metrics.csv`](./results/metrics.csv)).
 - Training curves ([`results/loss_curve.png`](./results/loss_curve.png), [`results/accuracy_curve.png`](./results/accuracy_curve.png)).
-- Evaluation results in [`src/evaluation/evaluate.ipynb`](./src/evaluation/evaluate.ipynb) (e.g., confusion matrix figures, etc).
+- Prediction results in [`src/evaluation/evaluate.ipynb`](./src/evaluation/evaluate.ipynb) (e.g., confusion matrix figures, etc).
