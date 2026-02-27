@@ -25,9 +25,7 @@ cd /home/mahasamilage.senanay/ass2
 python src/training/train.py \
   --train-path /work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Train \
   --val-path   /work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Val \
-  --test-path  /work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Test \
   --save-dir checkpoints \
   --epochs 10 \
   --batch-size 32 \
-  --num-workers 2 \
-  --eval
+  --num-workers 2

@@ -4,14 +4,24 @@ src/training/train.py
 
 Training script for FusionClassifier (image + text).
 
+Training-only:
+- trains on train split
+- validates on val split
+- saves best checkpoint by validation accuracy
+
+NOTE:
+- Evaluation (test-set metrics, confusion matrix, classification report, etc.)
+  is performed separately in src/evaluation/* using the saved best.pt checkpoint.
+- The ingestion helper make_loaders() currently requires a test_path argument and
+  will construct a test loader. Since this script is training-only, we do NOT
+  use the returned test_loader. We pass val_path as a harmless placeholder to
+  satisfy the ingestion API without touching the true test split here.
+
 Outputs in --save-dir:
 - best.pt
 - metrics.csv
 - loss_curve.png
 - accuracy_curve.png
-
-Optionally runs evaluation at the end by calling src/evaluation/evaluate.py logic:
-  python src/training/train.py --eval
 """
 
 from __future__ import annotations
@@ -24,12 +34,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR
-
-import matplotlib.pyplot as plt
 
 
 # -------------------------
@@ -52,7 +61,7 @@ def accuracy_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> float:
 
 
 # -------------------------
-# Dynamic import for data-ingestion (dash folder)
+# Dynamic import for data_ingestion
 # -------------------------
 
 def import_multimodal_ingestion(src_dir: Path):
@@ -77,7 +86,6 @@ def import_multimodal_ingestion(src_dir: Path):
 class TrainConfig:
     train_path: str
     val_path: str
-    test_path: str
     batch_size: int
     num_workers: int
     epochs: int
@@ -96,7 +104,6 @@ class TrainConfig:
     local_files_only: bool
 
     freeze_encoders: bool
-    run_eval: bool
 
 
 def parse_args() -> TrainConfig:
@@ -104,7 +111,6 @@ def parse_args() -> TrainConfig:
 
     p.add_argument("--train-path", default="/work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Train")
     p.add_argument("--val-path", default="/work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Val")
-    p.add_argument("--test-path", default="/work/TALC/ensf617_2026w/garbage_data/CVPR_2024_dataset_Test")
 
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--num-workers", type=int, default=4)
@@ -128,13 +134,11 @@ def parse_args() -> TrainConfig:
     p.add_argument("--local-files-only", action="store_true")
 
     p.add_argument("--freeze-encoders", action="store_true")
-    p.add_argument("--eval", action="store_true", help="Run evaluation pack after training")
 
     a = p.parse_args()
     return TrainConfig(
         train_path=a.train_path,
         val_path=a.val_path,
-        test_path=a.test_path,
         batch_size=a.batch_size,
         num_workers=a.num_workers,
         epochs=a.epochs,
@@ -151,12 +155,11 @@ def parse_args() -> TrainConfig:
         max_length=a.max_length,
         local_files_only=a.local_files_only,
         freeze_encoders=a.freeze_encoders,
-        run_eval=a.eval,
     )
 
 
 # -------------------------
-# Train/Eval loops (loss+acc only)
+# Train / Validation loops (loss + accuracy)
 # -------------------------
 
 def train_one_epoch(model, loader, device, criterion, optimizer) -> Tuple[float, float]:
@@ -185,7 +188,7 @@ def train_one_epoch(model, loader, device, criterion, optimizer) -> Tuple[float,
 
 
 @torch.no_grad()
-def evaluate_simple(model, loader, device, criterion) -> Tuple[float, float]:
+def validate_one_epoch(model, loader, device, criterion) -> Tuple[float, float]:
     model.eval()
     total_loss = 0.0
     total_acc = 0.0
@@ -206,6 +209,10 @@ def evaluate_simple(model, loader, device, criterion) -> Tuple[float, float]:
 
     return total_loss / max(n, 1), total_acc / max(n, 1)
 
+
+# -------------------------
+# Saving / plotting
+# -------------------------
 
 def save_checkpoint(path: Path, model: nn.Module, cfg: TrainConfig, class_to_idx: Dict[str, int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -259,6 +266,10 @@ def plot_curves(save_dir: Path, history: List[Dict[str, float]]) -> None:
     plt.close()
 
 
+# -------------------------
+# Main
+# -------------------------
+
 def main() -> None:
     cfg = parse_args()
     set_seed(cfg.seed)
@@ -278,10 +289,11 @@ def main() -> None:
     from models.classifiers import FusionClassifier  # noqa: E402
     ingestion_mod = import_multimodal_ingestion(src_dir)
 
-    train_loader, val_loader, test_loader, class_to_idx = ingestion_mod.make_loaders(
+    # Ingestion API requires test_path; we intentionally do NOT use test_loader here.
+    train_loader, val_loader, _unused_test_loader, class_to_idx = ingestion_mod.make_loaders(
         train_path=cfg.train_path,
         val_path=cfg.val_path,
-        test_path=cfg.test_path,
+        test_path=cfg.val_path,  # placeholder; real test eval happens separately
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
         tokenizer_name=cfg.text_model_name,
@@ -305,8 +317,11 @@ def main() -> None:
         print("Encoders frozen: training fusion head only.")
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW([p for p in model.parameters() if p.requires_grad],
-                            lr=cfg.lr, weight_decay=cfg.weight_decay)
+    optimizer = optim.AdamW(
+        [p for p in model.parameters() if p.requires_grad],
+        lr=cfg.lr,
+        weight_decay=cfg.weight_decay,
+    )
     scheduler = ExponentialLR(optimizer, gamma=cfg.gamma) if cfg.use_scheduler else None
 
     save_dir = repo_root / cfg.save_dir
@@ -318,18 +333,20 @@ def main() -> None:
 
     for epoch in range(1, cfg.epochs + 1):
         train_loss, train_acc = train_one_epoch(model, train_loader, device, criterion, optimizer)
-        val_loss, val_acc = evaluate_simple(model, val_loader, device, criterion)
+        val_loss, val_acc = validate_one_epoch(model, val_loader, device, criterion)
 
         if scheduler is not None:
             scheduler.step()
 
-        history.append({
-            "epoch": float(epoch),
-            "train_loss": float(train_loss),
-            "train_acc": float(train_acc),
-            "val_loss": float(val_loss),
-            "val_acc": float(val_acc),
-        })
+        history.append(
+            {
+                "epoch": float(epoch),
+                "train_loss": float(train_loss),
+                "train_acc": float(train_acc),
+                "val_loss": float(val_loss),
+                "val_acc": float(val_acc),
+            }
+        )
 
         print(
             f"Epoch {epoch:02d}/{cfg.epochs} | "
@@ -346,24 +363,6 @@ def main() -> None:
     save_metrics_csv(save_dir / "metrics.csv", history)
     plot_curves(save_dir, history)
     print(f"Saved training metrics/curves to: {save_dir}")
-
-    # Optional evaluation pack (delegated to src/evaluation/evaluate.py)
-    if cfg.run_eval:
-        from evaluation.evaluate import run_evaluation_pack  # noqa: E402
-
-        idx_to_class = {v: k for k, v in class_to_idx.items()}
-        class_names = [idx_to_class[i] for i in range(len(idx_to_class))]
-
-        eval_out = save_dir / "eval_best"
-        run_evaluation_pack(
-            checkpoint_path=best_path,
-            model=model,
-            test_loader=test_loader,
-            device=device,
-            class_names=class_names,
-            output_dir=eval_out,
-        )
-        print(f"Saved evaluation pack to: {eval_out}")
 
 
 if __name__ == "__main__":
