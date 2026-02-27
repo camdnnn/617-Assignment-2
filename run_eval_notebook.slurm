@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=ensf617_ass2_eval_nb
 #SBATCH --partition=gpu
-#SBATCH --output=/home/mahasamilage.senanay/ass2/logs/eval_nb_%j.out
-#SBATCH --error=/home/mahasamilage.senanay/ass2/logs/eval_nb_%j.err
+#SBATCH --output=logs/eval_nb_%j.out
+#SBATCH --error=logs/eval_nb_%j.err
 #SBATCH --time=01:00:00
 #SBATCH --mem=24G
 #SBATCH --cpus-per-task=2
@@ -18,14 +18,16 @@ conda activate ensf617-ass2
 
 # Headless plotting + consistent HF caches (match training)
 export MPLBACKEND=Agg
-export HF_HOME=/home/mahasamilage.senanay/.cache/huggingface
-export TRANSFORMERS_CACHE=/home/mahasamilage.senanay/.cache/huggingface/transformers
+export HF_HOME="$HOME/.cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME/transformers"
 
-cd /home/mahasamilage.senanay/ass2
+# Run from the directory where you submitted the job (project root)
+cd "$SLURM_SUBMIT_DIR"
+
 mkdir -p logs
 
-# Ensure "from models..." works
-export PYTHONPATH="/home/mahasamilage.senanay/ass2/src:$PYTHONPATH"
+# Ensure "from models..." works (project-relative)
+export PYTHONPATH="$SLURM_SUBMIT_DIR/src:${PYTHONPATH}"
 
 # Execute notebook and save executed copy (with outputs)
 python -m nbconvert \
